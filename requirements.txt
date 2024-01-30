@@ -1,0 +1,8 @@
+folium 
+pillow 
+tk
+matplotlib
+numpy
+pandas
+meshlabxml
+
