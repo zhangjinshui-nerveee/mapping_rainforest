@@ -1,44 +1,41 @@
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection, Line3DCollection
+import plotly.graph_objects as go
 import numpy as np
+from scipy.interpolate import griddata
 
-def read_obj_file(obj_filename):
+def read_obj_file(file_path):
     vertices = []
-    faces = []
 
-    with open(obj_filename, 'r') as obj_file:
-        for line in obj_file:
+    with open(file_path, 'r') as file:
+        for line in file:
             if line.startswith('v '):
-                vertex = list(map(float, line.strip().split()[1:]))
+                vertex = list(map(float, line.split()[1:]))
                 vertices.append(vertex)
-            elif line.startswith('f '):
-                face = [int(index.split('/')[0]) for index in line.strip().split()[1:]]
-                faces.append(face)
 
-    return np.array(vertices), faces
+    return np.array(vertices)
 
-def plot_3d_model(obj_filename):
-    vertices, faces = read_obj_file(obj_filename)
+def plot_obj_map(vertices):
+    x = vertices[:, 0]  # Longitude
+    y = vertices[:, 1]  # Elevation
+    z = vertices[:, 2]  # Altitude
 
-    fig = plt.figure(figsize=(8, 8))
-    ax = fig.add_subplot(111, projection='3d')
+    # Create a grid for surface plot
+    xi = np.linspace(min(x), max(x), 100)
+    yi = np.linspace(min(y), max(y), 100)
+    xi, yi = np.meshgrid(xi, yi)
+    zi = griddata((x, y), z, (xi, yi), method='linear')
 
-    # Plot vertices
-    ax.scatter(vertices[:, 0], vertices[:, 1], vertices[:, 2], c='b', marker='o')
+    fig = go.Figure(data=[go.Surface(z=zi, x=xi, y=yi, colorscale='Viridis')])
 
-    # Plot faces
-    poly3d = Poly3DCollection([vertices[face] for face in faces], alpha=0.5, edgecolor='k')
-    ax.add_collection3d(poly3d)
+    fig.update_layout(scene=dict(
+        xaxis_title='Longitude',
+        yaxis_title='Elevation',
+        zaxis_title='Altitude'
+    ))
 
-    # Set axis labels
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-
-    plt.show()
+    fig.show()
 
 if __name__ == "__main__":
-    obj_filename = "your_model.obj"  # Replace with the actual .obj file path
-    plot_3d_model(obj_filename)
+    obj_file_path = "your_model.obj"
+    obj_vertices = read_obj_file(obj_file_path)
+    plot_obj_map(obj_vertices)
 
