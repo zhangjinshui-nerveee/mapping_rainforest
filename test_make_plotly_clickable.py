@@ -4,7 +4,7 @@ import numpy as np
 from scipy.interpolate import griddata
 from fractions import Fraction
 import dash
-from dash import dcc, html
+from dash import dcc, html, Input, Output
 
 app = dash.Dash(__name__)
 
@@ -101,12 +101,24 @@ fig = plot_combined(obj_file_path, csv_filename)
 
 app.layout = html.Div([
     html.Div([
-        dcc.Graph(figure=fig)
+        dcc.Graph(id='main-graph', figure=fig)
     ], style={'width': '49%', 'display': 'inline-block', 'padding': '10px', 'border-right': '2px solid #ccc'}),
     html.Div([
-        html.Img(src='/assets/your_picture.jpg', style={'width': '100%'})
+        html.Img(id='image-display', style={'width': '100%'})
     ], style={'width': '49%', 'display': 'inline-block', 'padding': '10px'})
 ])
+
+@app.callback(
+    Output('image-display', 'src'),
+    [Input('main-graph', 'clickData')]
+)
+def update_image(clickData):
+    if clickData:
+        # Return the local image path when a point is clicked
+        return '/assets/your_picture.jpg'
+    else:
+        # If no point is clicked, do not display any image
+        return ''
 
 if __name__ == '__main__':
     app.run_server(debug=True)
