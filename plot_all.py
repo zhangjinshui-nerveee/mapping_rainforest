@@ -103,7 +103,7 @@ def plot_combined(obj_file_path, csv_filename):
     fig.show()
 
 if __name__ == "__main__":
-    obj_file_path = "your_model.obj"  # Replace with the actual path to your OBJ file
+    obj_file_path = 'your_model.obj'
     csv_filename = "path_data.csv"  # Replace with the actual CSV file path
     plot_combined(obj_file_path, csv_filename)
 
