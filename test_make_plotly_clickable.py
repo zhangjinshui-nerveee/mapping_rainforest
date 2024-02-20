@@ -97,6 +97,8 @@ def plot_combined(obj_file_path, csv_filename):
 
 obj_file_path = 'your_obj_file.obj'
 csv_filename = 'your_csv_file.csv'
+naming_list = pd.read_csv(csv_filename)['Filename']
+print(naming_list)
 fig = plot_combined(obj_file_path, csv_filename)
 
 app.layout = html.Div([
@@ -112,10 +114,19 @@ app.layout = html.Div([
     Output('image-display', 'src'),
     [Input('main-graph', 'clickData')]
 )
-def update_image(clickData):
+def update_image(clickData,
+                 ):
+
+    csv_filename = 'your_csv_file.csv'
+    naming_list = pd.read_csv(csv_filename)['Filename']
+    print(naming_list)
+    local_path='/Downloads/Photogrammetry-20240125T181848Z-001/Photogrammetry/Arboretum transect/',
     if clickData:
         # Return the local image path when a point is clicked
-        return '/assets/your_picture.jpg'
+        # print(naming_list[clickData['points'][0]['pointNumber']])
+        print(local_path + naming_list[clickData['points'][0]['pointNumber']])
+        # return local_path + naming_list[clickData['points'][0]['pointNumber']]
+        return'/assets/your_picture.jpg'
     else:
         # If no point is clicked, do not display any image
         return ''
