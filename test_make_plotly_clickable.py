@@ -4,7 +4,7 @@ import numpy as np
 from scipy.interpolate import griddata
 from fractions import Fraction
 import dash
-from dash import dcc, html, Input, Output
+from dash import dcc, html, Input, Output, State
 import os
 
 app = dash.Dash(__name__)
@@ -111,30 +111,47 @@ app.layout = html.Div([
     ], style={'width': '29%', 'display': 'inline-block', 'padding': '10px'})
 ])
 
+app.layout = html.Div([
+    dcc.Store(id='clicked-point'),  # Store for the clicked point index
+    html.Div([
+        dcc.Graph(id='main-graph', figure=fig)
+    ], style={'width': '49%', 'display': 'inline-block', 'padding': '10px', 'border-right': '2px solid #ccc'}),
+    html.Div([
+        html.Img(id='image-display', style={'width': '100%'})
+    ], style={'width': '29%', 'display': 'inline-block', 'padding': '10px'})
+])
+
+@app.callback(
+    Output('clicked-point', 'data'),
+    [Input('main-graph', 'clickData')]
+)
+def store_clicked_point(clickData):
+    if clickData is not None and 'points' in clickData and len(clickData['points']) > 0 and 'pointNumber' in clickData['points'][0]:
+        return clickData['points'][0]['pointNumber']
+    return None
+
+@app.callback(
+    Output('main-graph', 'figure'),
+    [Input('clicked-point', 'data')],
+    [State('main-graph', 'figure')]
+)
+def update_point_color(clicked_point, fig):
+    if clicked_point is not None:
+        if 'marker' in fig['data'][0] and 'color' in fig['data'][0]['marker']:
+            fig['data'][0]['marker']['color'] = ['red' if i == clicked_point else 'blue' for i in range(len(naming_list))]
+    return fig
 
 @app.callback(
     Output('image-display', 'src'),
-    [Input('main-graph', 'clickData')]
+    [Input('clicked-point', 'data')]
 )
-def update_image(clickData):
-    csv_filename = 'your_csv_file.csv'
-    naming_list = pd.read_csv(csv_filename)['Filename']
+def update_image(clicked_point):
     local_path = '/assets/'
-    # local_path = '/home/jinshui/Downloads/Photogrammetry20240125T181848Z001/Photogrammetry/Arboretumtransect/'  
-    # local_path = os.path.expanduser(local_path)
-    if clickData is not None and 'points' in clickData and len(clickData['points']) > 0 and 'pointNumber' in clickData['points'][0].keys():
-        print(clickData)
-        # Get the index of the clicked point
-        point_index = clickData['points'][0]['pointNumber']
-        if 0 <= point_index < len(naming_list):
-            # Get the corresponding image filename
-            image_filename = naming_list[point_index]
-            image_path = local_path + image_filename
-            print(image_path)
-            return image_path
-    # If no valid point is clicked, do not display any image
+    if clicked_point is not None:
+        image_filename = naming_list[clicked_point]
+        image_path = local_path + image_filename
+        return image_path
     return ''
-
 
 if __name__ == '__main__':
     app.run_server(debug=True)
