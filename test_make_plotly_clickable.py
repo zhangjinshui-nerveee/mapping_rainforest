@@ -5,6 +5,7 @@ from scipy.interpolate import griddata
 from fractions import Fraction
 import dash
 from dash import dcc, html, Input, Output
+import os
 
 app = dash.Dash(__name__)
 
@@ -107,29 +108,33 @@ app.layout = html.Div([
     ], style={'width': '49%', 'display': 'inline-block', 'padding': '10px', 'border-right': '2px solid #ccc'}),
     html.Div([
         html.Img(id='image-display', style={'width': '100%'})
-    ], style={'width': '49%', 'display': 'inline-block', 'padding': '10px'})
+    ], style={'width': '29%', 'display': 'inline-block', 'padding': '10px'})
 ])
+
 
 @app.callback(
     Output('image-display', 'src'),
     [Input('main-graph', 'clickData')]
 )
-def update_image(clickData,
-                 ):
-
+def update_image(clickData):
     csv_filename = 'your_csv_file.csv'
     naming_list = pd.read_csv(csv_filename)['Filename']
-    print(naming_list)
-    local_path='/Downloads/Photogrammetry-20240125T181848Z-001/Photogrammetry/Arboretum transect/',
-    if clickData:
-        # Return the local image path when a point is clicked
-        # print(naming_list[clickData['points'][0]['pointNumber']])
-        print(local_path + naming_list[clickData['points'][0]['pointNumber']])
-        # return local_path + naming_list[clickData['points'][0]['pointNumber']]
-        return'/assets/your_picture.jpg'
-    else:
-        # If no point is clicked, do not display any image
-        return ''
+    local_path = '/assets/'
+    # local_path = '/home/jinshui/Downloads/Photogrammetry20240125T181848Z001/Photogrammetry/Arboretumtransect/'  
+    # local_path = os.path.expanduser(local_path)
+    if clickData is not None and 'points' in clickData and len(clickData['points']) > 0 and 'pointNumber' in clickData['points'][0].keys():
+        print(clickData)
+        # Get the index of the clicked point
+        point_index = clickData['points'][0]['pointNumber']
+        if 0 <= point_index < len(naming_list):
+            # Get the corresponding image filename
+            image_filename = naming_list[point_index]
+            image_path = local_path + image_filename
+            print(image_path)
+            return image_path
+    # If no valid point is clicked, do not display any image
+    return ''
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
