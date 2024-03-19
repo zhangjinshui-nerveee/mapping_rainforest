@@ -5,7 +5,6 @@ from scipy.interpolate import griddata
 from fractions import Fraction
 import dash
 from dash import dcc, html, Input, Output, State
-import os
 
 app = dash.Dash(__name__)
 
@@ -104,54 +103,54 @@ fig = plot_combined(obj_file_path, csv_filename)
 
 app.layout = html.Div([
     html.Div([
-        dcc.Graph(id='main-graph', figure=fig)
-    ], style={'width': '49%', 'display': 'inline-block', 'padding': '10px', 'border-right': '2px solid #ccc'}),
+        html.Div([
+            html.H3("Rainforest model and drone trajectory"),
+            # dcc.Graph(id='main-graph', figure=fig)
+            dcc.Graph(id='main-graph', figure=fig, style={'width': '100%', 'height': '100vh', 'max-width': '700px', 'max-height': '700px', 'margin': 'auto'}),
+        ], style={
+		# 'border': '2px solid blue', 
+		'padding': '10px', 'height': '700px'}),
+    ], style={'flex': '50%', 'display': 'inline-block', 'padding': '10px'}),
     html.Div([
-        html.Img(id='image-display', style={'width': '100%'})
-    ], style={'width': '29%', 'display': 'inline-block', 'padding': '10px'})
-])
-
-app.layout = html.Div([
-    dcc.Store(id='clicked-point'),  # Store for the clicked point index
-    html.Div([
-        dcc.Graph(id='main-graph', figure=fig)
-    ], style={'width': '49%', 'display': 'inline-block', 'padding': '10px', 'border-right': '2px solid #ccc'}),
-    html.Div([
-        html.Img(id='image-display', style={'width': '100%'})
-    ], style={'width': '29%', 'display': 'inline-block', 'padding': '10px'})
-])
-
-@app.callback(
-    Output('clicked-point', 'data'),
-    [Input('main-graph', 'clickData')]
-)
-def store_clicked_point(clickData):
-    if clickData is not None and 'points' in clickData and len(clickData['points']) > 0 and 'pointNumber' in clickData['points'][0]:
-        return clickData['points'][0]['pointNumber']
-    return None
-
-@app.callback(
-    Output('main-graph', 'figure'),
-    [Input('clicked-point', 'data')],
-    [State('main-graph', 'figure')]
-)
-def update_point_color(clicked_point, fig):
-    if clicked_point is not None:
-        if 'marker' in fig['data'][0] and 'color' in fig['data'][0]['marker']:
-            fig['data'][0]['marker']['color'] = ['red' if i == clicked_point else 'blue' for i in range(len(naming_list))]
-    return fig
+        html.Div([
+            html.H3("Drone camera"),
+            html.Img(id='image-display', style={'width': '100%', 'border': '0.5px dashed black', 'height': '500px'})
+        ], style={'border': '1px solid black', 'padding': '10px'}),
+        html.Div([
+            html.H3("What is in there?"),
+            html.P("Trees.")
+        ], style={'border': '1px solid black', 'padding': '10px', 'text-align': 'center', 'height': '100px'}),
+    ], style={'flex': '30%', 'display': 'inline-block', 'padding': '10px'}),
+], style={'display': 'flex'})
 
 @app.callback(
     Output('image-display', 'src'),
-    [Input('clicked-point', 'data')]
+    [Input('main-graph', 'clickData')]
 )
-def update_image(clicked_point):
+def update_image(clickData):
     local_path = '/assets/'
-    if clicked_point is not None:
-        image_filename = naming_list[clicked_point]
-        image_path = local_path + image_filename
-        return image_path
+    if clickData is not None and 'points' in clickData and len(clickData['points']) > 0 and 'pointNumber' in clickData['points'][0]:
+        clicked_point = clickData['points'][0]['pointNumber']
+        if clicked_point is not None:
+            image_filename = naming_list[clicked_point]
+            image_path = local_path + image_filename
+            return image_path
     return ''
+
+@app.callback(
+    Output('main-graph', 'figure'),
+    [Input('main-graph', 'clickData')],
+    [State('main-graph', 'figure')]
+)
+def update_point_color(clickData, fig):
+    # if clickData is not None:
+    if clickData is not None and 'points' in clickData and len(clickData['points']) > 0 and 'pointNumber' in clickData['points'][0]:
+        if 'marker' in fig['data'][0] and 'color' in fig['data'][0]['marker']:
+            clicked_point = clickData['points'][0]['pointNumber'] # here
+            fig['data'][0]['marker']['color'] = ['red' if i == clicked_point else 'blue' for i in range(len(naming_list))]
+            fig['data'][0]['marker']['size'] = [16 if i == clicked_point else 8 for i in range(len(naming_list))]  # Set size to 16 for selected point
+            # fig['data'][0]['marker']['symbol'] = ['*' if i == clicked_point else 'circle' for i in range(len(naming_list))]  # Set shape to '*' for selected point
+    return fig
 
 if __name__ == '__main__':
     app.run_server(debug=True)
