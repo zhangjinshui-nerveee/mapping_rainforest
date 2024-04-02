@@ -1,97 +1,157 @@
-import tkinter as tk
-from tkinter import filedialog
-from PIL import Image, ImageTk
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+import pandas as pd
+import plotly.graph_objects as go
 import numpy as np
-import os
+from scipy.interpolate import griddata
+from fractions import Fraction
+import dash
+from dash import dcc, html, Input, Output, State
 
-class MapGalleryApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Map Gallery App")
+app = dash.Dash(__name__)
 
-        # Variables
-        self.map_filename = ""
-        self.gallery_folder = ""
+def convert_fraction_to_decimal(fraction_string):
+    try:
+        fraction = Fraction(fraction_string)
+        return float(fraction)
+    except ValueError:
+        return None
 
-        # Create UI
-        self.create_widgets()
+def normalize_values(values):
+    min_val = min(values)
+    max_val = max(values)
+    normalized_values = (values - min_val) / (max_val - min_val)
+    return normalized_values
 
-    def create_widgets(self):
-        # Frame for the map
-        self.map_frame = tk.Frame(self.root, width=400, height=400)
-        self.map_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+def read_obj_file(file_path):
+    vertices = []
 
-        # Frame for the gallery
-        self.gallery_frame = tk.Frame(self.root, width=400, height=400)
-        self.gallery_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+    with open(file_path, 'r') as file:
+        for line in file:
+            if line.startswith('v '):
+                vertex = list(map(float, line.split()[1:]))
+                vertices.append(vertex)
 
-        # Load Map button
-        load_map_button = tk.Button(self.root, text="Load Map", command=self.load_map)
-        load_map_button.pack(side=tk.TOP, pady=10)
+    return np.array(vertices)
 
-        # Load Gallery button
-        load_gallery_button = tk.Button(self.root, text="Load Gallery", command=self.load_gallery)
-        load_gallery_button.pack(side=tk.TOP, pady=10)
+def plot_combined(obj_file_path, csv_filename):
+    # Read CSV file into a DataFrame
+    df = pd.read_csv(csv_filename)
 
-    def load_map(self):
-        self.map_filename = filedialog.askopenfilename(title="Select Map File", filetypes=[("OBJ files", "*.obj")])
-        if self.map_filename:
-            self.display_map()
+    # Convert latitude and longitude from fractions to decimals
+    df['Latitude'] = df['Latitude'].apply(convert_fraction_to_decimal)
+    df['Longitude'] = df['Longitude'].apply(convert_fraction_to_decimal)
 
-    def display_map(self):
-        # Read OBJ file and extract coordinates
-        vertices = []
-        with open(self.map_filename, 'r') as obj_file:
-            for line in obj_file:
-                if line.startswith('v '):
-                    vertex = list(map(float, line.strip().split()[1:]))
-                    vertices.append(vertex)
+    # Normalize latitude, longitude, and elevation
+    df['Latitude'] = normalize_values(df['Latitude'].values)
+    df['Longitude'] = normalize_values(df['Longitude'].values)
+    df['Elevation'] = normalize_values(df['Elevation'].values)
 
-        vertices = np.array(vertices)
+    # Sort DataFrame by the "Filename" column
+    df = df.sort_values(by='Filename')
 
-        # Create 3D plot
-        fig = plt.figure(figsize=(6, 6))
-        ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(vertices[:, 0], vertices[:, 1], vertices[:, 2], c='b', marker='o')
+    # Extract coordinates and elevation
+    latitude = df['Latitude'].values
+    longitude = df['Longitude'].values
+    elevation = df['Elevation'].values
 
-        # Display the map
-        plt.show()
+    # Create a 3D scatter plot for the 3D path
+    path_trace = go.Scatter3d(
+        x=latitude,
+        y=longitude,
+        z=elevation,
+        mode='markers+lines',
+        marker=dict(size=4, color='blue'),
+        line=dict(color='blue', width=2),
+        name='3D Path'
+    )
 
-    def load_gallery(self):
-        self.gallery_folder = filedialog.askdirectory(title="Select Gallery Folder")
-        if self.gallery_folder:
-            self.display_gallery()
+    # Read OBJ file and create a grid for surface plot
+    obj_vertices = read_obj_file(obj_file_path)
+    x = obj_vertices[:, 0]  # Longitude
+    y = obj_vertices[:, 1]  # Elevation
+    z = obj_vertices[:, 2]  # Altitude
 
-    def display_gallery(self):
-        # Get all JPEG files in the gallery folder
-        image_files = [f for f in os.listdir(self.gallery_folder) if f.lower().endswith(('.jpg', '.jpeg', 'JPG'))]
+    # Normalize longitude, altitude, and elevation for the surface plot
+    x = normalize_values(x)
+    y = normalize_values(y)
+    z = normalize_values(z)
 
-        # Display each image in the gallery
-        for image_file in image_files:
-            image_path = os.path.join(self.gallery_folder, image_file)
+    xi = np.linspace(min(x), max(x), 100)
+    yi = np.linspace(min(y), max(y), 100)
+    xi, yi = np.meshgrid(xi, yi)
+    zi = griddata((x, y), z, (xi, yi), method='linear')
 
-            # Open and display the image
-            img = Image.open(image_path)
-            img.thumbnail((150, 150))
-            img_tk = ImageTk.PhotoImage(img)
+    # Create a 3D surface plot
+    surface_trace = go.Surface(z=zi, x=xi, y=yi, colorscale='Viridis', name='Surface Plot')
 
-            label = tk.Label(self.gallery_frame, image=img_tk)
-            label.image = img_tk  # Keep a reference to the image to prevent garbage collection
-            label.pack(side=tk.TOP, padx=10, pady=5)
+    # Create a Plotly Figure
+    fig = go.Figure(data=[path_trace, surface_trace])
 
-            # Add click event to redirect image to the map (replace with your logic)
-            label.bind("<Button-1>", lambda event, path=image_path: self.redirect_to_map(path))
+    # Update layout
+    fig.update_layout(scene=dict(
+        xaxis_title='Normalized Latitude',
+        yaxis_title='Normalized Longitude',
+        zaxis_title='Normalized Elevation'
+    ))
 
+    return fig
 
-    def redirect_to_map(self, image_path):
-        # Implement your logic to redirect the image to the map
-        # For demonstration, print the selected image path
-        print(f"Redirecting image to map: {image_path}")
+obj_file_path = 'forest_model.obj'
+csv_filename = 'drone_photos_entry.csv'
+naming_list = pd.read_csv(csv_filename)['Filename']
+print(naming_list)
+fig = plot_combined(obj_file_path, csv_filename)
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = MapGalleryApp(root)
-    root.mainloop()
+app.layout = html.Div([
+    html.Div([
+        html.Div([
+            html.H3("Rainforest model and drone trajectory"),
+            # dcc.Graph(id='main-graph', figure=fig)
+            dcc.Graph(id='main-graph', figure=fig, style={'width': '100%', 'height': '100vh', 'max-width': '700px', 'max-height': '700px', 'margin': 'auto'}),
+        ], style={
+		# 'border': '2px solid blue', 
+		'padding': '10px', 'height': '700px'}),
+    ], style={'flex': '50%', 'display': 'inline-block', 'padding': '10px'}),
+    html.Div([
+        html.Div([
+            html.H3("Drone camera"),
+            html.Img(id='image-display', style={'width': '100%', 'border': '0.5px dashed black', 'height': '500px'})
+        ], style={'border': '1px solid black', 'padding': '10px'}),
+        html.Div([
+            html.H3("What is in there?"),
+            html.P("Trees.")
+        ], style={'border': '1px solid black', 'padding': '10px', 'text-align': 'center', 'height': '100px'}),
+    ], style={'flex': '30%', 'display': 'inline-block', 'padding': '10px'}),
+], style={'display': 'flex'})
+
+@app.callback(
+    Output('image-display', 'src'),
+    [Input('main-graph', 'clickData')]
+)
+def update_image(clickData):
+    local_path = '/assets/'
+    if clickData is not None and 'points' in clickData and len(clickData['points']) > 0 and 'pointNumber' in clickData['points'][0]:
+        clicked_point = clickData['points'][0]['pointNumber']
+        if clicked_point is not None:
+            image_filename = naming_list[clicked_point]
+            image_path = local_path + image_filename
+            return image_path
+    return ''
+
+@app.callback(
+    Output('main-graph', 'figure'),
+    [Input('main-graph', 'clickData')],
+    [State('main-graph', 'figure')]
+)
+def update_point_color(clickData, fig):
+    # if clickData is not None:
+    if clickData is not None and 'points' in clickData and len(clickData['points']) > 0 and 'pointNumber' in clickData['points'][0]:
+        if 'marker' in fig['data'][0] and 'color' in fig['data'][0]['marker']:
+            clicked_point = clickData['points'][0]['pointNumber'] # here
+            fig['data'][0]['marker']['color'] = ['red' if i == clicked_point else 'blue' for i in range(len(naming_list))]
+            fig['data'][0]['marker']['size'] = [16 if i == clicked_point else 8 for i in range(len(naming_list))]  # Set size to 16 for selected point
+            # fig['data'][0]['marker']['symbol'] = ['*' if i == clicked_point else 'circle' for i in range(len(naming_list))]  # Set shape to '*' for selected point
+    return fig
+
+if __name__ == '__main__':
+    app.run_server(debug=True)
 
